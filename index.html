@@ -911,7 +911,7 @@ function startAutoShow() {
   }, 2300);
 }
 
-/* ---------- Web Audio：现场合成《生日快乐》（蛋糕页循环，吹灭即停） ---------- */
+/* ---------- Web Audio：八音盒版《生日快乐》（蛋糕页循环，吹灭即停） ---------- */
 let audioCtx = null;
 let songBus = null;
 let songLoopTimer = null;
@@ -925,52 +925,88 @@ function ensureSongBus() {
   const input = audioCtx.createGain();
   const master = audioCtx.createGain();
   master.gain.value = 0.9;
+  const conv = audioCtx.createConvolver(); // 与烟花共享的夜空混响，八音盒在里面像从远处传来
+  conv.buffer = getReverbIR();
+  const wet = audioCtx.createGain(); wet.gain.value = 0.3;
   input.connect(master);
-  // 夜色里的一点回声，让旋律有空间感
-  const delay = audioCtx.createDelay(1);
-  delay.delayTime.value = 0.28;
-  const feedback = audioCtx.createGain(); feedback.gain.value = 0.22;
-  const wet = audioCtx.createGain(); wet.gain.value = 0.16;
-  input.connect(delay);
-  delay.connect(feedback); feedback.connect(delay);
-  delay.connect(wet); wet.connect(master);
+  input.connect(conv); conv.connect(wet); wet.connect(master);
   master.connect(audioCtx.destination);
   songBus = { input, master };
   return songBus;
 }
-const FREQ = { G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
-function playNote(freq, when, dur) {
+const FREQ = {
+  F2: 87.31, G2: 98.00, C3: 130.81, F3: 174.61, G3: 196.00, B3: 246.94,
+  C4: 261.63, E4: 329.63, G4: 392.00, A4: 440.00, B4: 493.88,
+  C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99,
+};
+/* 八音盒音色：非整数泛音簇，每个分音独立指数衰减（高泛音消失更快） */
+const BELL_PARTIALS = [[1, 1], [2.01, 0.45], [3.01, 0.22], [4.7, 0.1]];
+function bellNote(freq, when, vel) {
   const { input } = ensureSongBus();
-  // 三层音色：三角波主音 + 高八度亮色 + 低八度铺底
-  [[freq, 'triangle', 0.16], [freq * 2, 'sine', 0.045], [freq / 2, 'sine', 0.06]].forEach(([f, type, vol]) => {
+  for (const [r, amp] of BELL_PARTIALS) {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.value = f;
+    osc.type = 'sine';
+    osc.frequency.value = freq * r;
+    const peak = vel * amp * 0.14;
+    const decay = 3.2 + r * 1.1;
+    const dur = Math.log(peak / 0.0008) / decay;
     g.gain.setValueAtTime(0, when);
-    g.gain.linearRampToValueAtTime(vol, when + 0.045);
-    g.gain.setValueAtTime(vol, when + Math.max(dur - 0.08, 0.04));
-    g.gain.exponentialRampToValueAtTime(0.001, when + dur + 0.18);
+    g.gain.linearRampToValueAtTime(peak, when + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
     osc.connect(g).connect(input);
-    osc.start(when);
-    osc.stop(when + dur + 0.25);
+    osc.start(when); osc.stop(when + dur + 0.05);
+  }
+}
+function chordPad(notes, when, dur) { // 左手和弦，柔和垫底
+  const { input } = ensureSongBus();
+  notes.forEach((n, i) => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = FREQ[n];
+    const vol = i === 0 ? 0.07 : 0.045;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.08);
+    g.gain.setValueAtTime(vol, when + Math.max(dur - 0.25, 0.1));
+    g.gain.exponentialRampToValueAtTime(0.001, when + dur + 0.3);
+    osc.connect(g).connect(input);
+    osc.start(when); osc.stop(when + dur + 0.35);
   });
 }
 function scheduleSongRound() {
-  const beat = 0.45;
-  const song = [
-    ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['C5', 1], ['B4', 2],
-    ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['D5', 1], ['C5', 2],
-    ['G4', .75], ['G4', .25], ['G5', 1], ['E5', 1], ['C5', 1], ['B4', 1], ['A4', 2],
-    ['F5', .75], ['F5', .25], ['E5', 1], ['C5', 1], ['D5', 1], ['C5', 2.5],
+  const beat = 0.46;
+  const t0 = audioCtx.currentTime + 0.12;
+  const melody = [ // [音名, 拍数, 力度]：每句首音稍重，长音略强
+    ['G4', .75, 1], ['G4', .25, .8], ['A4', 1, .85], ['G4', 1, .85], ['C5', 1, .9], ['B4', 2, .95],
+    ['G4', .75, 1], ['G4', .25, .8], ['A4', 1, .85], ['G4', 1, .85], ['D5', 1, .9], ['C5', 2, .95],
+    ['G4', .75, 1], ['G4', .25, .8], ['G5', 1, .9], ['E5', 1, .85], ['C5', 1, .85], ['B4', 1, .85], ['A4', 2, .95],
+    ['F5', .75, 1], ['F5', .25, .8], ['E5', 1, .85], ['C5', 1, .85], ['D5', 1, .9], ['C5', 2.5, .95],
   ];
-  let t = audioCtx.currentTime + 0.12;
-  for (const [note, beats] of song) {
-    const dur = beats * beat;
-    playNote(FREQ[note], t, dur * 0.92);
-    t += dur;
+  const chords = [ // 标准编配 C / G7 / F
+    [0, 4, ['C3', 'G3', 'E4']],
+    [4, 2, ['G2', 'F3', 'B3']],
+    [6, 4, ['C3', 'G3', 'E4']],
+    [10, 1, ['G2', 'F3', 'B3']],
+    [11, 1, ['C3', 'G3', 'E4']],
+    [12, 4, ['C3', 'G3', 'E4']],
+    [16, 3, ['F2', 'F3', 'C4']],
+    [19, 2, ['F2', 'F3', 'C4']],
+    [21, 2, ['C3', 'G3', 'E4']],
+    [23, 1, ['G2', 'F3', 'B3']],
+    [24, 1.5, ['C3', 'G3', 'E4']],
+  ];
+  let t = t0, last = 0;
+  for (const [note, beats, vel] of melody) {
+    bellNote(FREQ[note], t, vel);
+    t += beats * beat;
   }
-  return t - audioCtx.currentTime;
+  last = t - t0;
+  for (const [start, dur, notes] of chords) {
+    chordPad(notes, t0 + start * beat, dur * beat);
+    last = Math.max(last, (start + dur) * beat + 0.3);
+  }
+  return last;
 }
 function startSong() {
   ensureAudio();
@@ -979,7 +1015,7 @@ function startSong() {
   const round = () => {
     if (!songActive) return;
     const total = scheduleSongRound();
-    songLoopTimer = setTimeout(round, (total + 1.1) * 1000);
+    songLoopTimer = setTimeout(round, (total + 1.0) * 1000);
   };
   round();
 }
