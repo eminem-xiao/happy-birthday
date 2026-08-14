@@ -1135,6 +1135,7 @@ addEventListener('pointerdown', e => {
     finaleStarted = true;
     fireworkShow();
     startAutoShow();
+    startSong(); // 烟花秀的配乐：八音盒生日歌与第一发烟花同时响起
     return;
   }
   fxObjects.push(new Rocket(e.clientX, Math.random() < 0.3 ? 'heart' : randomType()));
