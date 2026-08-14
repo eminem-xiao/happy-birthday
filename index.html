@@ -591,6 +591,66 @@ class Flash {
   }
 }
 
+/* ---------- 烟花音效：发射 whoosh + 爆炸 boom，与画面逐帧同步 ---------- */
+let noiseBuf = null;
+let sfxBus = null;
+function getNoiseBuf() {
+  if (noiseBuf) return noiseBuf;
+  const len = Math.floor(audioCtx.sampleRate * 1.2);
+  noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+}
+function ensureSfxBus() {
+  if (sfxBus) return sfxBus;
+  sfxBus = audioCtx.createGain();
+  sfxBus.gain.value = 0.55;
+  sfxBus.connect(audioCtx.destination);
+  return sfxBus;
+}
+function audioReady() { return audioCtx && audioCtx.state === 'running'; }
+function sfxLaunch() { // 上升的"嗖"
+  if (!audioReady()) return;
+  const t = audioCtx.currentTime;
+  const src = audioCtx.createBufferSource();
+  src.buffer = getNoiseBuf(); src.loop = true;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = 1.1;
+  bp.frequency.setValueAtTime(300, t);
+  bp.frequency.exponentialRampToValueAtTime(1500, t + 0.5);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.15, t + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+  src.connect(bp).connect(g).connect(ensureSfxBus());
+  src.start(t); src.stop(t + 0.6);
+}
+function sfxBurst() { // 炸开的"砰"：低频冲击 + 噪声爆裂
+  if (!audioReady()) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const og = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(38, t + 0.26);
+  og.gain.setValueAtTime(0.42, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(og).connect(ensureSfxBus());
+  osc.start(t); osc.stop(t + 0.32);
+  const src = audioCtx.createBufferSource();
+  src.buffer = getNoiseBuf();
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(3200, t);
+  lp.frequency.exponentialRampToValueAtTime(180, t + 0.45);
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0.32, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  src.connect(lp).connect(ng).connect(ensureSfxBus());
+  src.start(t); src.stop(t + 0.55);
+}
+
 class Rocket {
   constructor(x, type, palette) {
     this.x = x;
@@ -601,6 +661,7 @@ class Rocket {
     this.vy = -(9.5 + Math.random() * 3) * FX_SCALE;
     this.g = 0.18 * FX_SCALE;
     this.trail = [];
+    sfxLaunch();
   }
   update(born) {
     this.y += this.vy;
@@ -615,6 +676,7 @@ class Rocket {
     return true;
   }
   explode(born) {
+    sfxBurst(); // 精确卡在爆炸那一帧
     const S = FX_SCALE, x = this.x, y = this.y;
     const pick = arr => arr[Math.floor(Math.random() * arr.length)];
     born.push(new Flash(x, y, (46 * S) + 16, '#FFF3D6'));
