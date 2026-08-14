@@ -824,45 +824,90 @@ function startAutoShow() {
   }, 2300);
 }
 
-/* ---------- Web Audio：现场合成《生日快乐》 ---------- */
+/* ---------- Web Audio：现场合成《生日快乐》（蛋糕页循环，吹灭即停） ---------- */
 let audioCtx = null;
+let songBus = null;
+let songLoopTimer = null;
+let songActive = false;
 function ensureAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
+function ensureSongBus() {
+  if (songBus) return songBus;
+  const input = audioCtx.createGain();
+  const master = audioCtx.createGain();
+  master.gain.value = 0.9;
+  input.connect(master);
+  // 夜色里的一点回声，让旋律有空间感
+  const delay = audioCtx.createDelay(1);
+  delay.delayTime.value = 0.28;
+  const feedback = audioCtx.createGain(); feedback.gain.value = 0.22;
+  const wet = audioCtx.createGain(); wet.gain.value = 0.16;
+  input.connect(delay);
+  delay.connect(feedback); feedback.connect(delay);
+  delay.connect(wet); wet.connect(master);
+  master.connect(audioCtx.destination);
+  songBus = { input, master };
+  return songBus;
+}
 const FREQ = { G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
 function playNote(freq, when, dur) {
-  const master = audioCtx.createGain();
-  master.gain.value = 0.22;
-  master.connect(audioCtx.destination);
-  [[freq, 'triangle', 1], [freq * 2, 'sine', 0.28]].forEach(([f, type, vol]) => {
+  const { input } = ensureSongBus();
+  // 三层音色：三角波主音 + 高八度亮色 + 低八度铺底
+  [[freq, 'triangle', 0.16], [freq * 2, 'sine', 0.045], [freq / 2, 'sine', 0.06]].forEach(([f, type, vol]) => {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = type;
     osc.frequency.value = f;
     g.gain.setValueAtTime(0, when);
-    g.gain.linearRampToValueAtTime(vol, when + 0.03);
-    g.gain.setValueAtTime(vol, when + Math.max(dur - 0.1, 0.05));
-    g.gain.exponentialRampToValueAtTime(0.001, when + dur + 0.12);
-    osc.connect(g).connect(master);
+    g.gain.linearRampToValueAtTime(vol, when + 0.045);
+    g.gain.setValueAtTime(vol, when + Math.max(dur - 0.08, 0.04));
+    g.gain.exponentialRampToValueAtTime(0.001, when + dur + 0.18);
+    osc.connect(g).connect(input);
     osc.start(when);
-    osc.stop(when + dur + 0.2);
+    osc.stop(when + dur + 0.25);
   });
 }
-function playHappyBirthday() {
-  ensureAudio();
-  const beat = 0.42;
+function scheduleSongRound() {
+  const beat = 0.45;
   const song = [
     ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['C5', 1], ['B4', 2],
     ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['D5', 1], ['C5', 2],
     ['G4', .75], ['G4', .25], ['G5', 1], ['E5', 1], ['C5', 1], ['B4', 1], ['A4', 2],
     ['F5', .75], ['F5', .25], ['E5', 1], ['C5', 1], ['D5', 1], ['C5', 2.5],
   ];
-  let t = audioCtx.currentTime + 0.15;
+  let t = audioCtx.currentTime + 0.12;
   for (const [note, beats] of song) {
     const dur = beats * beat;
     playNote(FREQ[note], t, dur * 0.92);
     t += dur;
+  }
+  return t - audioCtx.currentTime;
+}
+function startSong() {
+  ensureAudio();
+  if (songActive) return;
+  songActive = true;
+  const round = () => {
+    if (!songActive) return;
+    const total = scheduleSongRound();
+    songLoopTimer = setTimeout(round, (total + 1.1) * 1000);
+  };
+  round();
+}
+function stopSong() {
+  songActive = false;
+  clearTimeout(songLoopTimer);
+  if (audioCtx && songBus) {
+    const now = audioCtx.currentTime;
+    songBus.master.gain.cancelScheduledValues(now);
+    songBus.master.gain.setValueAtTime(songBus.master.gain.value, now);
+    songBus.master.gain.linearRampToValueAtTime(0.0001, now + 1.3); // 随熄灯一起渐弱
+    setTimeout(() => {
+      if (songBus) { try { songBus.master.disconnect(); } catch (e) {} }
+      songBus = null; // 下次播放重建总线
+    }, 1600);
   }
 }
 
@@ -875,7 +920,7 @@ function openGift() {
   ensureAudio();
   giftBox.classList.add('open');
   burstConfetti(110);
-  setTimeout(() => showScene('scene-cake'), 950);
+  setTimeout(() => { showScene('scene-cake'); startSong(); }, 950);
 }
 giftBox.addEventListener('click', openGift);
 giftBox.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGift(); } });
@@ -891,13 +936,13 @@ let candlesOut = false;
 function blowOut() {
   if (candlesOut) return;
   candlesOut = true;
+  stopSong();                                            // 音乐随熄灯一起渐弱
   document.querySelectorAll('.candle').forEach(c => c.classList.add('out'));
   blowHint.style.display = 'none';
   setTimeout(() => { cakeSvg.classList.add('dark'); }, 300);
   setTimeout(() => blackout.classList.add('on'), 500);
   setTimeout(() => {
     blackout.classList.remove('on');
-    playHappyBirthday();
     cakeSub.textContent = '愿望已生效 · 最精彩的还在后面';
     toLetterBtn.hidden = false;
   }, 1900);
