@@ -620,7 +620,7 @@ function ensureSfxBus() {
   const input = audioCtx.createGain();
   const conv = audioCtx.createConvolver();
   conv.buffer = getReverbIR();
-  const wet = audioCtx.createGain(); wet.gain.value = 0.42;
+  const wet = audioCtx.createGain(); wet.gain.value = 0.5;
   const comp = audioCtx.createDynamicsCompressor();
   comp.threshold.value = -18; comp.ratio.value = 6;
   const master = audioCtx.createGain(); master.gain.value = 0.85;
@@ -653,29 +653,20 @@ function sfxLaunch() { // 发射：发射药"噗" + 上升的嘶声
   sfxNoise(t, { type: 'lowpass', f0: 320, f1: 120, g0: 0.28, dur: 0.13 });
   sfxNoise(t + 0.03, { type: 'bandpass', f0: 420, f1: 1900, q: 2.4, g0: 0.1, attack: 0.06, dur: 0.55 });
 }
-function sfxBurst() { // 爆炸：高频"啪"瞬态 + 低频芯 + 闷噪声长尾 + 超低频体感 + 星子噼啪
+function sfxBurst() { // 爆炸：高频"啪"瞬态 + 低频噪声芯 + 闷噪声长尾 + 低频体感 + 星子噼啪
   if (!audioReady()) return;
   const t = audioCtx.currentTime;
   sfxNoise(t, { type: 'highpass', f0: 1100, q: 0.7, g0: 0.42, dur: 0.06 });        // ① 啪
-  const o = audioCtx.createOscillator();
-  const og = audioCtx.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(95, t);
-  o.frequency.exponentialRampToValueAtTime(48, t + 0.5);
-  og.gain.setValueAtTime(0.36, t);
-  og.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
-  o.connect(og).connect(ensureSfxBus());
-  o.start(t); o.stop(t + 0.7);                                                      // ② 低频芯
-  sfxNoise(t, { type: 'lowpass', f0: 560, f1: 55, g0: 0.5, dur: 1.5 });             // ③ 长尾
-  const sub = audioCtx.createOscillator();
+  sfxNoise(t, { type: 'lowpass', f0: 130, f1: 70, q: 0.9, g0: 0.45, dur: 0.8 });   // ② 低频"砰"（噪声性，无音高感）
+  sfxNoise(t, { type: 'lowpass', f0: 560, f1: 55, g0: 0.5, dur: 1.5 });            // ③ 长尾
+  const sub = audioCtx.createOscillator();                                          // ④ 固定音高低频体感（不下扫，避免鼓感）
   const sg = audioCtx.createGain();
   sub.type = 'sine';
-  sub.frequency.setValueAtTime(56, t);
-  sub.frequency.exponentialRampToValueAtTime(33, t + 0.45);
-  sg.gain.setValueAtTime(0.22, t);
-  sg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+  sub.frequency.value = 68;
+  sg.gain.setValueAtTime(0.18, t);
+  sg.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
   sub.connect(sg).connect(ensureSfxBus());
-  sub.start(t); sub.stop(t + 0.6);                                                  // ④ 超低频
+  sub.start(t); sub.stop(t + 0.45);
   const ticks = 5 + Math.floor(Math.random() * 4);
   for (let i = 0; i < ticks; i++) {                                                 // ⑤ 星子噼啪
     sfxNoise(t + 0.12 + Math.random() * 0.6, {
