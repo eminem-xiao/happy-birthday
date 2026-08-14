@@ -591,64 +591,98 @@ class Flash {
   }
 }
 
-/* ---------- 烟花音效：发射 whoosh + 爆炸 boom，与画面逐帧同步 ---------- */
+/* ---------- 烟花音效：多层合成 + 夜空卷积混响，与画面逐帧同步 ---------- */
 let noiseBuf = null;
+let reverbIR = null;
 let sfxBus = null;
 function getNoiseBuf() {
   if (noiseBuf) return noiseBuf;
-  const len = Math.floor(audioCtx.sampleRate * 1.2);
+  const len = Math.floor(audioCtx.sampleRate * 1.6);
   noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   return noiseBuf;
 }
+function getReverbIR() { // 指数衰减噪声 = 夜空的简易脉冲响应
+  if (reverbIR) return reverbIR;
+  const sec = 3.4, sr = audioCtx.sampleRate;
+  const n = Math.floor(sec * sr);
+  const buf = audioCtx.createBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-3.2 * i / n);
+  }
+  reverbIR = buf;
+  return buf;
+}
 function ensureSfxBus() {
   if (sfxBus) return sfxBus;
-  sfxBus = audioCtx.createGain();
-  sfxBus.gain.value = 0.55;
-  sfxBus.connect(audioCtx.destination);
+  const input = audioCtx.createGain();
+  const conv = audioCtx.createConvolver();
+  conv.buffer = getReverbIR();
+  const wet = audioCtx.createGain(); wet.gain.value = 0.42;
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 6;
+  const master = audioCtx.createGain(); master.gain.value = 0.85;
+  input.connect(comp);                       // 干声
+  input.connect(conv); conv.connect(wet); wet.connect(comp); // 湿声：夜空回响
+  comp.connect(master);
+  master.connect(audioCtx.destination);
+  sfxBus = input;
   return sfxBus;
 }
 function audioReady() { return audioCtx && audioCtx.state === 'running'; }
-function sfxLaunch() { // 上升的"嗖"
-  if (!audioReady()) return;
-  const t = audioCtx.currentTime;
+function sfxNoise(t, { type = 'lowpass', f0 = 1000, f1 = null, q = 0.8, g0 = 0.3, attack = 0, dur = 0.5, rate = 1 }) {
   const src = audioCtx.createBufferSource();
   src.buffer = getNoiseBuf(); src.loop = true;
-  const bp = audioCtx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.Q.value = 1.1;
-  bp.frequency.setValueAtTime(300, t);
-  bp.frequency.exponentialRampToValueAtTime(1500, t + 0.5);
+  src.playbackRate.value = rate * (0.85 + Math.random() * 0.3); // 每发声色微差
+  const f = audioCtx.createBiquadFilter();
+  f.type = type; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t);
+  if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
   const g = audioCtx.createGain();
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.15, t + 0.08);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-  src.connect(bp).connect(g).connect(ensureSfxBus());
-  src.start(t); src.stop(t + 0.6);
+  g.gain.setValueAtTime(attack > 0 ? 0.001 : g0, t);
+  if (attack > 0) g.gain.linearRampToValueAtTime(g0, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(f).connect(g).connect(ensureSfxBus());
+  src.start(t, Math.random()); src.stop(t + dur + 0.05);
 }
-function sfxBurst() { // 炸开的"砰"：低频冲击 + 噪声爆裂
+function sfxLaunch() { // 发射：发射药"噗" + 上升的嘶声
   if (!audioReady()) return;
   const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
+  sfxNoise(t, { type: 'lowpass', f0: 320, f1: 120, g0: 0.28, dur: 0.13 });
+  sfxNoise(t + 0.03, { type: 'bandpass', f0: 420, f1: 1900, q: 2.4, g0: 0.1, attack: 0.06, dur: 0.55 });
+}
+function sfxBurst() { // 爆炸：高频"啪"瞬态 + 低频芯 + 闷噪声长尾 + 超低频体感 + 星子噼啪
+  if (!audioReady()) return;
+  const t = audioCtx.currentTime;
+  sfxNoise(t, { type: 'highpass', f0: 1100, q: 0.7, g0: 0.42, dur: 0.06 });        // ① 啪
+  const o = audioCtx.createOscillator();
   const og = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(150, t);
-  osc.frequency.exponentialRampToValueAtTime(38, t + 0.26);
-  og.gain.setValueAtTime(0.42, t);
-  og.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-  osc.connect(og).connect(ensureSfxBus());
-  osc.start(t); osc.stop(t + 0.32);
-  const src = audioCtx.createBufferSource();
-  src.buffer = getNoiseBuf();
-  const lp = audioCtx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(3200, t);
-  lp.frequency.exponentialRampToValueAtTime(180, t + 0.45);
-  const ng = audioCtx.createGain();
-  ng.gain.setValueAtTime(0.32, t);
-  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-  src.connect(lp).connect(ng).connect(ensureSfxBus());
-  src.start(t); src.stop(t + 0.55);
+  o.type = 'sine';
+  o.frequency.setValueAtTime(95, t);
+  o.frequency.exponentialRampToValueAtTime(48, t + 0.5);
+  og.gain.setValueAtTime(0.36, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+  o.connect(og).connect(ensureSfxBus());
+  o.start(t); o.stop(t + 0.7);                                                      // ② 低频芯
+  sfxNoise(t, { type: 'lowpass', f0: 560, f1: 55, g0: 0.5, dur: 1.5 });             // ③ 长尾
+  const sub = audioCtx.createOscillator();
+  const sg = audioCtx.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(56, t);
+  sub.frequency.exponentialRampToValueAtTime(33, t + 0.45);
+  sg.gain.setValueAtTime(0.22, t);
+  sg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+  sub.connect(sg).connect(ensureSfxBus());
+  sub.start(t); sub.stop(t + 0.6);                                                  // ④ 超低频
+  const ticks = 5 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < ticks; i++) {                                                 // ⑤ 星子噼啪
+    sfxNoise(t + 0.12 + Math.random() * 0.6, {
+      type: 'highpass', f0: 2400, q: 0.8,
+      g0: 0.05 + Math.random() * 0.09, dur: 0.02 + Math.random() * 0.03, rate: 1.4,
+    });
+  }
 }
 
 class Rocket {
