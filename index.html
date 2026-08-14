@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A14">
+<title>22 · 写给宝宝</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕯️</text></svg>">
+<style>
+  :root {
+    --night: #0A0A14;
+    --night-2: #14141f;
+    --candle: #FFB347;
+    --flame-core: #FFF3D6;
+    --rose: #E8859B;
+    --rose-deep: #D98A9E;
+    --ink: #EDE6DA;
+    --ink-dim: rgba(237, 230, 218, 0.42);
+    --paper: #F6F0E4;
+    --paper-ink: #3B342E;
+    --serif: "Didot", "Bodoni 72", "Playfair Display", "Songti SC", "Noto Serif SC", serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%);
+    color: var(--ink);
+    overflow: hidden;
+    position: fixed;
+    inset: 0;
+  }
+
+  /* ===== 画布层 ===== */
+  #stars { position: fixed; inset: 0; z-index: 0; }
+  #fx { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+  #blackout {
+    position: fixed; inset: 0; z-index: 25;
+    background: #000; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  #blackout.on { opacity: 0.78; }
+
+  /* ===== 场景通用 ===== */
+  .scene {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: var(--rose);
+    text-transform: lowercase;
+  }
+  .scene h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(24px, 6.4vw, 38px);
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    margin: 18px 0 10px;
+    line-height: 1.5;
+  }
+  .sub {
+    color: var(--ink-dim);
+    font-size: clamp(13px, 3.6vw, 15px);
+    letter-spacing: 0.14em;
+    line-height: 2;
+  }
+  .hint {
+    color: var(--ink-dim);
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    margin-top: 34px;
+    animation: breathe 2.6s ease-in-out infinite;
+  }
+  .hint .arrow { display: block; margin-top: 10px; font-size: 15px; color: var(--rose); }
+  @keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.95; } }
+
+  .btn {
+    margin-top: 34px;
+    padding: 13px 44px;
+    background: rgba(237, 230, 218, 0.04);
+    border: 1px solid rgba(237, 230, 218, 0.28);
+    border-radius: 2px;
+    color: var(--ink);
+    font-size: 14px;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    cursor: pointer;
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  .btn:hover { border-color: rgba(237, 230, 218, 0.6); background: rgba(237, 230, 218, 0.08); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible, [role="button"]:focus-visible { outline: 1px solid var(--rose); outline-offset: 4px; }
+
+  /* ===== 场景1：礼物盒（SVG 缎面） ===== */
+  .gift-wrap {
+    position: relative;
+    width: min(66vw, 252px);
+    margin: 40px 0 4px;
+    cursor: pointer;
+    animation: giftBob 3.2s ease-in-out infinite;
+  }
+  @keyframes giftBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .gift-svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .lid {
+    transform-box: fill-box;
+    transform-origin: 50% 90%;
+    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.3, 1.35), opacity 0.7s ease;
+  }
+  .gift-wrap.open .lid { transform: translateY(-130px) rotate(-16deg); opacity: 0; }
+  .gift-wrap.open { animation: none; cursor: default; }
+
+  /* ===== 场景2：蛋糕 ===== */
+  .cake-stage { margin: 26px 0 4px; cursor: pointer; }
+  .cake-svg {
+    width: min(78vw, 330px);
+    height: auto;
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 0 42px rgba(255, 179, 71, 0.22));
+    transition: filter 1.6s ease;
+  }
+  .cake-svg.dark { filter: drop-shadow(0 14px 34px rgba(0, 0, 0, 0.5)); }
+  .flame {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: flick 0.18s ease-in-out infinite alternate;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+  }
+  .flame.f1 { animation-duration: 0.16s; }
+  .flame.f2 { animation-duration: 0.22s; animation-delay: -0.1s; }
+  @keyframes flick {
+    from { transform: scale(1, 1) rotate(-2deg); }
+    to { transform: scale(0.93, 1.06) rotate(2.4deg); }
+  }
+  .candle.out .flame { transform: scale(0); opacity: 0; animation: none; }
+  .smoke { transform-box: fill-box; opacity: 0; }
+  .candle.out .smoke { animation: smokeUp 1.8s ease-out forwards; }
+  .candle.out .smoke:nth-of-type(2) { animation-delay: 0.22s; }
+  .candle.out .smoke:nth-of-type(3) { animation-delay: 0.44s; }
+  @keyframes smokeUp {
+    0% { transform: translateY(0) scale(0.5); opacity: 0.75; }
+    100% { transform: translateY(-58px) scale(2.8); opacity: 0; }
+  }
+
+  /* ===== 场景3：信 ===== */
+  #scene-letter { overflow-y: auto; justify-content: flex-start; }
+  #scene-letter::before, #scene-letter::after { content: ''; margin: auto; }
+  .letter {
+    width: min(92vw, 540px);
+    max-height: 62vh;
+    overflow-y: auto;
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(255, 220, 160, 0.16), transparent 55%),
+      linear-gradient(180deg, #F8F2E7, #F1E9DA);
+    border-radius: 3px;
+    padding: 32px 30px 26px;
+    text-align: left;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), inset 0 0 60px rgba(120, 90, 40, 0.06);
+    scrollbar-width: none;
+  }
+  .letter::-webkit-scrollbar { display: none; }
+  .letter-head {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: rgba(59, 52, 46, 0.5);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid rgba(59, 52, 46, 0.14);
+  }
+  .letter-text {
+    font-family: var(--serif);
+    font-size: clamp(14px, 3.9vw, 16.5px);
+    line-height: 2.12;
+    letter-spacing: 0.09em;
+    color: var(--paper-ink);
+    white-space: pre-wrap;
+    min-height: 60px;
+  }
+  .type-cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    background: var(--rose-deep);
+    vertical-align: -0.15em;
+    animation: cursorBlink 0.85s step-end infinite;
+  }
+  @keyframes cursorBlink { 50% { opacity: 0; } }
+  .letter-sign {
+    margin-top: 22px;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.1em;
+    color: #8A6B74;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  .letter-sign.show { opacity: 1; }
+
+  /* ===== 场景4：结尾 ===== */
+  .final-num {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(96px, 26vw, 168px);
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 60px rgba(255, 179, 71, 0.18);
+  }
+  .final-line {
+    font-family: var(--serif);
+    font-size: clamp(20px, 5.4vw, 28px);
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    margin-top: 14px;
+  }
+  .final-sub { margin-top: 20px; }
+  .sign {
+    margin-top: 46px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--ink-dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gift-wrap, .flame, .hint { animation: none !important; }
+    .scene { transition-duration: 0.01ms; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+
+  <!-- 场景1：拆礼物 -->
+  <div id="scene-gift" class="scene active">
+    <p class="eyebrow">~/for/<span data-hername>宝宝</span></p>
+    <h1>有个东西，只想给你看</h1>
+    <div class="gift-wrap" id="giftBox" role="button" tabindex="0" aria-label="拆开礼物">
+      <svg class="gift-svg" viewBox="0 0 260 250" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#EE93A8"/>
+            <stop offset="1" stop-color="#C4677E"/>
+          </linearGradient>
+          <linearGradient id="lidGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F4A3B5"/>
+            <stop offset="1" stop-color="#DC7A93"/>
+          </linearGradient>
+          <linearGradient id="ribbonGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#E3D8C2"/>
+            <stop offset="0.22" stop-color="#FBF7EE"/>
+            <stop offset="0.5" stop-color="#EFE6D2"/>
+            <stop offset="0.78" stop-color="#FBF7EE"/>
+            <stop offset="1" stop-color="#E3D8C2"/>
+          </linearGradient>
+          <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+            <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="bowGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FBF7EE"/>
+            <stop offset="1" stop-color="#E0D5BE"/>
+          </linearGradient>
+          <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="4"/>
+          </filter>
+        </defs>
+
+        <!-- 桌面阴影 -->
+        <ellipse cx="130" cy="232" rx="88" ry="11" fill="#000" opacity="0.5" filter="url(#soft)"/>
+        <!-- 烛光氛围 -->
+        <ellipse cx="130" cy="130" rx="150" ry="120" fill="#FFB347" opacity="0.05" filter="url(#soft)"/>
+
+        <!-- 盒身 -->
+        <g>
+          <rect x="55" y="104" width="150" height="116" rx="10" fill="url(#boxGrad)"/>
+          <rect x="55" y="104" width="150" height="116" rx="10" fill="url(#sheen)"/>
+          <rect x="113" y="104" width="34" height="116" fill="url(#ribbonGrad)"/>
+          <rect x="113" y="104" width="3" height="116" fill="#000" opacity="0.07"/>
+          <rect x="144" y="104" width="3" height="116" fill="#000" opacity="0.07"/>
+        </g>
+
+        <!-- 盖子 + 蝴蝶结（一起飞走） -->
+        <g class="lid">
+          <rect x="43" y="80" width="174" height="40" rx="9" fill="url(#lidGrad)"/>
+          <rect x="43" y="80" width="174" height="40" rx="9" fill="url(#sheen)"/>
+          <rect x="113" y="80" width="34" height="40" fill="url(#ribbonGrad)"/>
+          <rect x="113" y="80" width="3" height="40" fill="#000" opacity="0.07"/>
+          <rect x="144" y="80" width="3" height="40" fill="#000" opacity="0.07"/>
+          <rect x="52" y="112" width="156" height="3" rx="1.5" fill="#000" opacity="0.1"/>
+          <!-- 左尾带 -->
+          <path d="M116 70 C110 84, 103 95, 96 108 L109 103 L117 112 C122 100, 125 88, 126 76 Z" fill="url(#bowGrad)"/>
+          <!-- 右尾带 -->
+          <path d="M144 70 C150 84, 157 95, 164 108 L151 103 L143 112 C138 100, 135 88, 134 76 Z" fill="url(#bowGrad)"/>
+          <!-- 左环 -->
+          <path d="M126 64 C112 44, 74 46, 78 68 C81 86, 110 88, 126 74 Z" fill="url(#bowGrad)"/>
+          <path d="M124 66 C112 50, 82 51, 84 67 C86 80, 108 82, 124 71 Z" fill="#000" opacity="0.06"/>
+          <!-- 右环 -->
+          <path d="M134 64 C148 44, 186 46, 182 68 C179 86, 150 88, 134 74 Z" fill="url(#bowGrad)"/>
+          <path d="M136 66 C148 50, 178 51, 176 67 C174 80, 152 82, 136 71 Z" fill="#000" opacity="0.06"/>
+          <!-- 中心结 -->
+          <rect x="118" y="58" width="24" height="20" rx="6" fill="url(#bowGrad)"/>
+          <rect x="118" y="58" width="24" height="20" rx="6" fill="url(#sheen)"/>
+        </g>
+      </svg>
+    </div>
+    <p class="hint">点 击 礼 物 盒 · 拆 开 它<span class="arrow">↓</span></p>
+  </div>
+
+  <!-- 场景2：蛋糕 -->
+  <div id="scene-cake" class="scene">
+    <p class="eyebrow">the first of many · 2026</p>
+    <div class="cake-stage" id="cake" role="button" tabindex="0" aria-label="蛋糕，点击吹灭蜡烛">
+      <svg class="cake-svg" viewBox="0 0 320 268" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="creamSide" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F2E7D3"/>
+            <stop offset="1" stop-color="#D9C9AE"/>
+          </linearGradient>
+          <linearGradient id="creamTop" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FBF5E9"/>
+            <stop offset="1" stop-color="#EFE3CD"/>
+          </linearGradient>
+          <linearGradient id="roseSide" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#E7A0B1"/>
+            <stop offset="1" stop-color="#C97F94"/>
+          </linearGradient>
+          <linearGradient id="roseTop" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F3BBC7"/>
+            <stop offset="1" stop-color="#E7A0B1"/>
+          </linearGradient>
+          <radialGradient id="flameGrad" cx="0.5" cy="0.72" r="0.72">
+            <stop offset="0" stop-color="#FFF8DE"/>
+            <stop offset="0.45" stop-color="#FFCF6E"/>
+            <stop offset="1" stop-color="#FF9A3C"/>
+          </radialGradient>
+          <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#E8E4DC"/>
+            <stop offset="1" stop-color="#B9B3A6"/>
+          </linearGradient>
+          <linearGradient id="candleBody" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#E8DFCB"/>
+            <stop offset="0.35" stop-color="#FDF8EC"/>
+            <stop offset="1" stop-color="#CFC3A9"/>
+          </linearGradient>
+          <linearGradient id="candleBodyRose" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#D6889C"/>
+            <stop offset="0.35" stop-color="#F2AFBF"/>
+            <stop offset="1" stop-color="#BF7186"/>
+          </linearGradient>
+          <pattern id="candyStripe" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+            <rect width="8" height="8" fill="#FDF9F0"/>
+            <rect width="4" height="8" fill="#F29CB2"/>
+          </pattern>
+        </defs>
+
+        <!-- 桌面阴影 -->
+        <ellipse cx="160" cy="252" rx="128" ry="12" fill="black" opacity="0.45"/>
+        <!-- 盘子 -->
+        <ellipse cx="160" cy="240" rx="118" ry="16" fill="url(#plate)"/>
+        <ellipse cx="160" cy="237.5" rx="108" ry="12.5" fill="#CFC9BC"/>
+        <ellipse cx="160" cy="237" rx="100" ry="10.5" fill="url(#plate)" opacity="0.8"/>
+        <path d="M64 236 Q160 226 256 236" stroke="#F5F1E8" stroke-width="1.4" opacity="0.7" fill="none"/>
+
+        <!-- 底层蛋糕：奶油白 -->
+        <g>
+          <rect x="72" y="176" width="176" height="62" rx="7" fill="url(#creamSide)"/>
+          <ellipse cx="160" cy="176" rx="88" ry="13" fill="url(#creamTop)"/>
+          <path d="M72 182 v50 q0 6 7 6 h162 q7 0 7 -6 v-50" fill="url(#creamSide)"/>
+          <g stroke="#B99F7E" stroke-opacity="0.18" stroke-width="2.5" stroke-linecap="round" fill="none">
+            <path d="M96 188 C94 202 94 220 97 234"/>
+            <path d="M124 188 C122 202 122 220 125 234"/>
+            <path d="M160 190 C158 204 158 220 161 234"/>
+            <path d="M196 188 C194 202 194 220 197 234"/>
+            <path d="M224 188 C222 202 222 220 225 234"/>
+          </g>
+        </g>
+
+        <!-- 上层蛋糕：干玫瑰 -->
+        <g>
+          <rect x="104" y="122" width="112" height="56" rx="6" fill="url(#roseSide)"/>
+          <ellipse cx="160" cy="122" rx="56" ry="9" fill="url(#roseTop)"/>
+          <path d="M104 127 v45 q0 6 6 6 h100 q6 0 6 -6 v-45" fill="url(#roseSide)"/>
+          <g stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="2" stroke-linecap="round" fill="none">
+            <path d="M126 132 C124 144 124 158 127 172"/>
+            <path d="M160 132 C158 144 158 158 161 172"/>
+            <path d="M194 132 C192 144 192 158 195 172"/>
+          </g>
+          <ellipse cx="160" cy="122" rx="54" ry="8" fill="none" stroke="#FFFAF2" stroke-width="1" opacity="0.4"/>
+        </g>
+
+        <!-- 螺旋条纹数字蜡烛 "2" ×2 -->
+        <g class="candle" data-candle>
+          <ellipse cx="144" cy="124.5" rx="5.5" ry="2" fill="#000" opacity="0.1"/>
+          <rect x="142" y="112" width="4" height="14" rx="2" fill="url(#candyStripe)" stroke="#C97F94" stroke-width="0.7"/>
+          <path d="M135 100 C135 92, 140 88, 143.5 88 C147 88, 151.5 92, 151.5 100 C151.5 104, 148.5 107, 144.5 110 L135 118 L154 118"
+                fill="none" stroke="#C97F94" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M135 100 C135 92, 140 88, 143.5 88 C147 88, 151.5 92, 151.5 100 C151.5 104, 148.5 107, 144.5 110 L135 118 L154 118"
+                fill="none" stroke="url(#candyStripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M135 100 C135 92, 140 88, 143.5 88 C147 88, 151.5 92, 151.5 100 C151.5 104, 148.5 107, 144.5 110 L135 118 L154 118"
+                fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1.8, 0)"/>
+          <line x1="143.5" y1="87.5" x2="143.5" y2="83" stroke="#6B4A2E" stroke-width="1.6" stroke-linecap="round"/>
+          <g transform="translate(143.5, 82.5)">
+            <ellipse cx="0" cy="-7" rx="9" ry="11" fill="#FFB347" opacity="0.2"/>
+            <path class="flame f1" d="M0 0 C4.6 -4.5 4.2 -11 0 -16.5 C-4.2 -11 -4.6 -4.5 0 0 Z" fill="url(#flameGrad)"/>
+          </g>
+          <circle class="smoke" cx="143.5" cy="80" r="3" fill="#C9C6D2"/>
+          <circle class="smoke" cx="143.5" cy="80" r="2.6" fill="#C9C6D2"/>
+          <circle class="smoke" cx="143.5" cy="80" r="2.2" fill="#C9C6D2"/>
+        </g>
+        <g class="candle" data-candle>
+          <ellipse cx="176" cy="124.5" rx="5.5" ry="2" fill="#000" opacity="0.1"/>
+          <rect x="174" y="112" width="4" height="14" rx="2" fill="url(#candyStripe)" stroke="#C97F94" stroke-width="0.7"/>
+          <path d="M167 100 C167 92, 172 88, 175.5 88 C179 88, 183.5 92, 183.5 100 C183.5 104, 180.5 107, 176.5 110 L167 118 L186 118"
+                fill="none" stroke="#C97F94" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M167 100 C167 92, 172 88, 175.5 88 C179 88, 183.5 92, 183.5 100 C183.5 104, 180.5 107, 176.5 110 L167 118 L186 118"
+                fill="none" stroke="url(#candyStripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M167 100 C167 92, 172 88, 175.5 88 C179 88, 183.5 92, 183.5 100 C183.5 104, 180.5 107, 176.5 110 L167 118 L186 118"
+                fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1.8, 0)"/>
+          <line x1="175.5" y1="87.5" x2="175.5" y2="83" stroke="#6B4A2E" stroke-width="1.6" stroke-linecap="round"/>
+          <g transform="translate(175.5, 82.5)">
+            <ellipse cx="0" cy="-7" rx="9" ry="11" fill="#FFB347" opacity="0.2"/>
+            <path class="flame f2" d="M0 0 C4.6 -4.5 4.2 -11 0 -16.5 C-4.2 -11 -4.6 -4.5 0 0 Z" fill="url(#flameGrad)"/>
+          </g>
+          <circle class="smoke" cx="175.5" cy="80" r="3" fill="#C9C6D2"/>
+          <circle class="smoke" cx="175.5" cy="80" r="2.6" fill="#C9C6D2"/>
+          <circle class="smoke" cx="175.5" cy="80" r="2.2" fill="#C9C6D2"/>
+        </g>
+      </svg>
+    </div>
+    <p class="sub" id="cakeSub">闭上眼，许一个愿望</p>
+    <p class="hint" id="blowHint">然 后 点 一 下 蛋 糕 · 把 蜡 烛 吹 灭</p>
+    <button class="btn" id="toLetter" hidden>读我的心事</button>
+  </div>
+
+  <!-- 场景3：信 -->
+  <div id="scene-letter" class="scene">
+    <div class="letter">
+      <div class="letter-head">
+        <span id="letterDate">2026.08.15</span>
+        <span>写给宝宝</span>
+      </div>
+      <div class="letter-text" id="letterText"></div><span class="type-cursor" id="typeCursor"></span>
+      <p class="letter-sign" id="letterSign">—— 永远爱你的 <span data-yourname>你的专属程序员</span></p>
+    </div>
+    <button class="btn" id="toFinal" hidden>还剩一个惊喜</button>
+  </div>
+
+  <!-- 场景4：结尾 -->
+  <div id="scene-final" class="scene">
+    <p class="eyebrow">// wish granted</p>
+    <div class="final-num">22</div>
+    <div class="final-line">岁 生 日 快 乐</div>
+    <p class="sub final-sub">愿你许下的愿望，正在实现的路上</p>
+    <p class="hint">点 一 下 夜 空 · 送 你 一 场 烟 花</p>
+    <p class="sign">—— 永远爱你的 <span data-yourname>你的专属程序员</span></p>
+  </div>
+
+  <div id="blackout"></div>
+  <canvas id="fx"></canvas>
+
+<script>
+/* ============================================================
+ * ✏️ 只需要改这里 —— 你的专属配置
+ * ============================================================ */
+const CONFIG = {
+  herName: '宝宝',            // 她的名字或你们之间的昵称
+  yourName: '你的专属程序员',  // 你的落款
+  birthDate: '2026.08.15',    // 信纸上的日期
+};
+
+document.querySelectorAll('[data-hername]').forEach(el => el.textContent = CONFIG.herName);
+document.querySelectorAll('[data-yourname]').forEach(el => el.textContent = CONFIG.yourName);
+document.getElementById('letterDate').textContent = CONFIG.birthDate;
+document.querySelector('.letter-head span:last-child').textContent = '写给' + CONFIG.herName;
+
+/* ---------- 场景切换 ---------- */
+function showScene(id) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---------- 星空 ---------- */
+const starsCanvas = document.getElementById('stars');
+const sctx = starsCanvas.getContext('2d');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let stars = [];
+function initStars() {
+  starsCanvas.width = innerWidth; starsCanvas.height = innerHeight;
+  stars = Array.from({ length: Math.floor(innerWidth * innerHeight / 16000) }, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+    r: Math.random() * 0.7 + 0.25,
+    phase: Math.random() * Math.PI * 2,
+    speed: Math.random() * 0.7 + 0.25,
+  }));
+}
+function drawStars(t) {
+  sctx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
+  for (const s of stars) {
+    const a = reduceMotion ? 0.3 : 0.12 + 0.3 * Math.abs(Math.sin(t / 1000 * s.speed + s.phase));
+    sctx.beginPath();
+    sctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    sctx.fillStyle = `rgba(237, 230, 218, ${a})`;
+    sctx.fill();
+  }
+  if (!reduceMotion) requestAnimationFrame(drawStars);
+}
+addEventListener('resize', initStars);
+initStars();
+requestAnimationFrame(drawStars);
+
+/* ---------- 特效画布：烟花 + 彩纸 ---------- */
+const fxCanvas = document.getElementById('fx');
+const fctx = fxCanvas.getContext('2d');
+const FX_PALETTE = ['#FFB347', '#FFF3D6', '#E8859B', '#F6F0E4', '#FF8A5C', '#FFD98A', '#A8C7FF'];
+const PAL_WARM = ['#FFB347', '#FF8A5C', '#FFD98A'];
+const PAL_ROSE = ['#E8859B', '#FF9AB2', '#FFB7C5'];
+const PAL_GOLD = ['#FFD98A', '#FFF3D6', '#FFC66E'];
+const PAL_SKY  = ['#A8C7FF', '#DCE8FF', '#FFF3D6'];
+const PALETTES = [PAL_WARM, PAL_ROSE, PAL_GOLD, PAL_SKY];
+let fxObjects = [];
+let fxRunning = false;
+let FX_SCALE = 1;
+function initFx() {
+  fxCanvas.width = innerWidth; fxCanvas.height = innerHeight;
+  FX_SCALE = Math.min(1, Math.min(innerWidth, innerHeight) / 760);
+}
+addEventListener('resize', initFx);
+initFx();
+
+/* destination-out 逐帧擦淡 alpha：旧粒子留下渐隐拖尾，且不遮挡页面本身 */
+function fxLoop() {
+  fxRunning = true;
+  fctx.globalCompositeOperation = 'destination-out';
+  fctx.fillStyle = 'rgba(0, 0, 0, 0.26)';
+  fctx.fillRect(0, 0, fxCanvas.width, fxCanvas.height);
+  fctx.globalCompositeOperation = 'lighter';
+
+  const next = [];
+  const born = [];
+  for (const o of fxObjects) if (o.update(born)) next.push(o);
+  fxObjects = next.concat(born);
+
+  if (!fxObjects.length) {
+    fxRunning = false;
+    fctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    return;
+  }
+  for (const o of fxObjects) o.draw(fctx);
+  requestAnimationFrame(fxLoop);
+}
+function ensureFxLoop() { if (!fxRunning) requestAnimationFrame(fxLoop); }
+
+/* 爆炸瞬间的白色闪光 */
+class Flash {
+  constructor(x, y, r, color) { this.x = x; this.y = y; this.r = r; this.color = color; this.life = 1; }
+  update() { this.life -= 0.09; return this.life > 0; }
+  draw(ctx) {
+    const r = this.r * (1 + (1 - this.life) * 0.8);
+    const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r);
+    g.addColorStop(0, this.color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = this.life * 0.5;
+    ctx.fillStyle = g;
+    ctx.fillRect(this.x - r * 2, this.y - r * 2, r * 4, r * 4);
+    ctx.globalAlpha = 1;
+  }
+}
+
+class Rocket {
+  constructor(x, type, palette) {
+    this.x = x;
+    this.y = fxCanvas.height + 10;
+    this.type = type || randomType();
+    this.palette = palette || PALETTES[Math.floor(Math.random() * PALETTES.length)];
+    this.targetY = fxCanvas.height * (this.type === 'heart' ? 0.13 + Math.random() * 0.1 : 0.16 + Math.random() * 0.3);
+    this.vy = -(9.5 + Math.random() * 3) * FX_SCALE;
+    this.g = 0.18 * FX_SCALE;
+    this.trail = [];
+  }
+  update(born) {
+    this.y += this.vy;
+    this.vy += this.g;
+    this.trail.push({ x: this.x, y: this.y });
+    if (this.trail.length > 9) this.trail.shift();
+    if (Math.random() < 0.55) {
+      born.push(new Spark(this.x, this.y, (Math.random() - 0.5) * 0.7, (0.5 + Math.random() * 0.9) * FX_SCALE, '#FFD98A',
+        { decay: 0.028, lineW: 1.1, twinkle: false, g: 0.02 * FX_SCALE }));
+    }
+    if (this.y <= this.targetY || this.vy >= 0) { this.explode(born); return false; }
+    return true;
+  }
+  explode(born) {
+    const S = FX_SCALE, x = this.x, y = this.y;
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    born.push(new Flash(x, y, (46 * S) + 16, '#FFF3D6'));
+
+    if (this.type === 'heart') {
+      const n = 78;
+      for (let i = 0; i < n; i++) {
+        const t = (Math.PI * 2 * i) / n;
+        const hx = 16 * Math.pow(Math.sin(t), 3);
+        const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        const len = Math.hypot(hx, hy);
+        const speed = (4.0 + (Math.random() - 0.5) * 0.2) * S;
+        born.push(new Spark(x, y, (hx / len) * speed, (-hy / len) * speed,
+          i % 5 === 0 ? '#FFF3D6' : pick(this.palette),
+          { decay: 0.0065, g: 0.02 * S, lineW: 2, twinkle: false }));
+      }
+    } else if (this.type === 'ring') {
+      const n = 46, ringSpeed = (3.1 + Math.random() * 0.3) * S;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n;
+        const speed = ringSpeed + (Math.random() - 0.5) * 0.1;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed,
+          i % 3 === 0 ? '#FFF6E0' : pick(this.palette),
+          { decay: 0.011, g: 0.03 * S, lineW: 1.9 }));
+      }
+    } else if (this.type === 'willow') {
+      const n = 62;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const speed = (0.7 + Math.random() * 1.7) * S;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed,
+          i % 4 === 0 ? '#FFF3D6' : pick(PAL_GOLD),
+          { decay: 0.0045 + Math.random() * 0.002, g: 0.11 * S, lineW: 1.5 }));
+      }
+    } else if (this.type === 'double') {
+      const no = 52;
+      for (let i = 0; i < no; i++) {
+        const a = (Math.PI * 2 * i) / no + Math.random() * 0.08;
+        const speed = (3.2 + Math.random() * 0.9) * S;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed, pick(this.palette),
+          { decay: 0.010, g: 0.045 * S, lineW: 2 }));
+      }
+      const ni = 22;
+      for (let i = 0; i < ni; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const speed = (1.1 + Math.random() * 0.7) * S;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed, '#FFF3D6',
+          { decay: 0.013, g: 0.04 * S, lineW: 1.7 }));
+      }
+    } else if (this.type === 'crackle') {
+      const n = 58;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const speed = (1.6 + Math.random() * 2.4) * S;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed,
+          i % 6 === 0 ? '#FFF6E0' : pick(this.palette),
+          { decay: 0.009 + Math.random() * 0.006, g: 0.05 * S, lineW: 2, crackle: Math.random() < 0.22 }));
+      }
+    } else {
+      const n = 66 + Math.floor(Math.random() * 30);
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + Math.random() * 0.1;
+        const speed = (1.6 + Math.random() * 2.6) * S;
+        born.push(new Spark(x, y, Math.cos(a) * speed, Math.sin(a) * speed,
+          i % 7 === 0 ? '#FFF6E0' : pick(this.palette),
+          { decay: 0.009 + Math.random() * 0.008, g: 0.05 * S, lineW: 2.1 }));
+      }
+    }
+  }
+  draw(ctx) {
+    for (let i = 0; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 1.4 * (i / this.trail.length) + 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 240, 200, ${0.3 * (i / this.trail.length)})`;
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff8e7';
+    ctx.shadowColor = '#FFB347';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+function randomType() {
+  const r = Math.random();
+  if (r < 0.15) return 'heart';
+  if (r < 0.40) return 'peony';
+  if (r < 0.55) return 'double';
+  if (r < 0.70) return 'ring';
+  if (r < 0.85) return 'willow';
+  return 'crackle';
+}
+
+class Spark {
+  constructor(x, y, vx, vy, color, opts = {}) {
+    this.x = x; this.y = y; this.px = x; this.py = y;
+    this.vx = vx; this.vy = vy;
+    this.color = color;
+    this.life = 1;
+    this.decay = opts.decay ?? 0.009;
+    this.g = opts.g ?? 0.05 * FX_SCALE;
+    this.lineW = opts.lineW ?? 2;
+    this.twinkle = opts.twinkle ?? true;
+    this.crackle = opts.crackle ?? false;
+    this.crackled = false;
+  }
+  update(born) {
+    this.px = this.x; this.py = this.y;
+    this.x += this.vx; this.y += this.vy;
+    this.vy += this.g;
+    this.vx *= 0.985; this.vy *= 0.985;
+    this.life -= this.decay;
+    if (this.crackle && !this.crackled && this.life < 0.5) {
+      this.crackled = true;
+      for (let i = 0; i < 5; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = (0.4 + Math.random() * 1.4) * FX_SCALE;
+        born.push(new Spark(this.x, this.y, Math.cos(a) * s, Math.sin(a) * s, '#FFFDF2',
+          { decay: 0.045, g: 0.03 * FX_SCALE, lineW: 1.3, twinkle: false }));
+      }
+    }
+    return this.life > 0;
+  }
+  draw(ctx) {
+    let a = this.life;
+    if (this.twinkle && this.life < 0.45 && Math.random() < 0.4) a *= 0.25;
+    ctx.globalAlpha = Math.max(a, 0);
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.lineW * this.life + 0.3;
+    ctx.beginPath();
+    ctx.moveTo(this.px, this.py);
+    ctx.lineTo(this.x, this.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+class Confetti {
+  constructor() {
+    this.x = fxCanvas.width / 2 + (Math.random() - 0.5) * 100;
+    this.y = fxCanvas.height / 2 - 40;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 4 + Math.random() * 8;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed - 5;
+    this.color = FX_PALETTE[Math.floor(Math.random() * FX_PALETTE.length)];
+    this.w = 5 + Math.random() * 6;
+    this.h = 7 + Math.random() * 7;
+    this.rot = Math.random() * Math.PI;
+    this.vr = (Math.random() - 0.5) * 0.3;
+    this.life = 1;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    this.vy += 0.22; this.vx *= 0.99;
+    this.rot += this.vr;
+    this.life -= 0.006;
+    return this.life > 0 && this.y < fxCanvas.height + 30;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.globalAlpha = Math.max(this.life, 0);
+    ctx.fillStyle = this.color;
+    ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+    ctx.restore();
+  }
+}
+function burstConfetti(n = 100) {
+  for (let i = 0; i < n; i++) fxObjects.push(new Confetti());
+  ensureFxLoop();
+}
+
+/* 编排好的烟花秀：开场一颗心，各弹型轮番，结尾再补一颗心 */
+const FIREWORK_SHOW = [
+  [0.00, 'heart',   PAL_ROSE, 0.50],
+  [0.95, 'peony',   PAL_WARM, 0.30],
+  [1.70, 'double',  PAL_SKY,  0.66],
+  [2.50, 'willow',  PAL_GOLD, 0.50],
+  [3.30, 'crackle', PAL_WARM, 0.36],
+  [4.10, 'ring',    PAL_ROSE, 0.62],
+  [4.90, 'heart',   PAL_ROSE, 0.52],
+  [5.70, 'peony',   PAL_WARM, 0.28],
+  [6.50, 'double',  PAL_ROSE, 0.60],
+  [7.30, 'willow',  PAL_GOLD, 0.44],
+  [8.20, 'crackle', PAL_WARM, 0.58],
+  [9.00, 'heart',   PAL_ROSE, 0.48],
+];
+function fireworkShow() {
+  for (const [delay, type, pal, xr] of FIREWORK_SHOW) {
+    setTimeout(() => {
+      fxObjects.push(new Rocket(fxCanvas.width * xr, type, pal));
+      ensureFxLoop();
+    }, delay * 1000);
+  }
+}
+let autoShowId = null;
+function startAutoShow() {
+  if (autoShowId) return;
+  autoShowId = setInterval(() => {
+    fxObjects.push(new Rocket(fxCanvas.width * (0.14 + Math.random() * 0.72)));
+    ensureFxLoop();
+  }, 2300);
+}
+
+/* ---------- Web Audio：现场合成《生日快乐》 ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+const FREQ = { G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
+function playNote(freq, when, dur) {
+  const master = audioCtx.createGain();
+  master.gain.value = 0.22;
+  master.connect(audioCtx.destination);
+  [[freq, 'triangle', 1], [freq * 2, 'sine', 0.28]].forEach(([f, type, vol]) => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.03);
+    g.gain.setValueAtTime(vol, when + Math.max(dur - 0.1, 0.05));
+    g.gain.exponentialRampToValueAtTime(0.001, when + dur + 0.12);
+    osc.connect(g).connect(master);
+    osc.start(when);
+    osc.stop(when + dur + 0.2);
+  });
+}
+function playHappyBirthday() {
+  ensureAudio();
+  const beat = 0.42;
+  const song = [
+    ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['C5', 1], ['B4', 2],
+    ['G4', .75], ['G4', .25], ['A4', 1], ['G4', 1], ['D5', 1], ['C5', 2],
+    ['G4', .75], ['G4', .25], ['G5', 1], ['E5', 1], ['C5', 1], ['B4', 1], ['A4', 2],
+    ['F5', .75], ['F5', .25], ['E5', 1], ['C5', 1], ['D5', 1], ['C5', 2.5],
+  ];
+  let t = audioCtx.currentTime + 0.15;
+  for (const [note, beats] of song) {
+    const dur = beats * beat;
+    playNote(FREQ[note], t, dur * 0.92);
+    t += dur;
+  }
+}
+
+/* ---------- 场景1：拆礼物 ---------- */
+const giftBox = document.getElementById('giftBox');
+let giftOpened = false;
+function openGift() {
+  if (giftOpened) return;
+  giftOpened = true;
+  ensureAudio();
+  giftBox.classList.add('open');
+  burstConfetti(110);
+  setTimeout(() => showScene('scene-cake'), 950);
+}
+giftBox.addEventListener('click', openGift);
+giftBox.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGift(); } });
+
+/* ---------- 场景2：吹蜡烛（熄灯三秒 → 烟花与歌） ---------- */
+const cake = document.getElementById('cake');
+const cakeSub = document.getElementById('cakeSub');
+const blowHint = document.getElementById('blowHint');
+const blackout = document.getElementById('blackout');
+const toLetterBtn = document.getElementById('toLetter');
+const cakeSvg = document.querySelector('.cake-svg');
+let candlesOut = false;
+function blowOut() {
+  if (candlesOut) return;
+  candlesOut = true;
+  document.querySelectorAll('.candle').forEach(c => c.classList.add('out'));
+  blowHint.style.display = 'none';
+  setTimeout(() => { cakeSvg.classList.add('dark'); }, 300);
+  setTimeout(() => blackout.classList.add('on'), 500);
+  setTimeout(() => {
+    blackout.classList.remove('on');
+    playHappyBirthday();
+    cakeSub.textContent = '愿望已生效 · 最精彩的还在后面';
+    toLetterBtn.hidden = false;
+  }, 1900);
+}
+cake.addEventListener('click', blowOut);
+cake.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); blowOut(); } });
+
+/* ---------- 场景3：打字机情书 ---------- */
+const letterText = `致 ${CONFIG.herName}：
+
+今天，你 22 岁了。
+这是我们在一块儿以后，
+我陪你过的第一个生日。
+
+第一个的意思是——
+往后还有第二个、
+第十个、第五十个。
+
+谢谢你出现在我的世界。
+从那天起，
+我写的每一行代码里，
+都藏着你的名字。
+
+你的愿望，我陪你一起实现；
+你的余生，请多指教。
+
+生日快乐。`;
+const letterEl = document.getElementById('letterText');
+const letterBox = document.querySelector('.letter');
+const typeCursor = document.getElementById('typeCursor');
+const letterSign = document.getElementById('letterSign');
+const toFinalBtn = document.getElementById('toFinal');
+let letterStarted = false;
+toLetterBtn.addEventListener('click', () => {
+  showScene('scene-letter');
+  setTimeout(startLetter, 1100);
+});
+function startLetter() {
+  if (letterStarted) return;
+  letterStarted = true;
+  let i = 0;
+  (function tick() {
+    if (i <= letterText.length) {
+      letterEl.textContent = letterText.slice(0, i);
+      letterBox.scrollTop = letterBox.scrollHeight;
+      const ch = letterText[i - 1];
+      i++;
+      setTimeout(tick, ch === '\n' ? 300 : (/[，。？！——、]/.test(ch) ? 250 : 92));
+    } else {
+      typeCursor.style.display = 'none';
+      letterSign.classList.add('show');
+      setTimeout(() => { toFinalBtn.hidden = false; }, 1300);
+    }
+  })();
+}
+toFinalBtn.addEventListener('click', () => {
+  showScene('scene-final');
+});
+
+/* ---------- 场景4：点击放烟花（第一次点击，点亮整片夜空） ---------- */
+const finalScene = document.getElementById('scene-final');
+let finaleStarted = false;
+addEventListener('pointerdown', e => {
+  if (!finalScene.classList.contains('active')) return;
+  if (e.target.closest('button')) return;
+  if (!finaleStarted) {
+    finaleStarted = true;
+    fireworkShow();
+    startAutoShow();
+    return;
+  }
+  fxObjects.push(new Rocket(e.clientX, Math.random() < 0.3 ? 'heart' : randomType()));
+  ensureFxLoop();
+});
+</script>
+</body>
+</html>
